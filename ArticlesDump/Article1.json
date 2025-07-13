@@ -1,0 +1,15 @@
+Article 1: "CryptoLocker 2.0" Ransomware Targets Tokyo Financial District
+Subject: Critical Alert: New Ransomware Variant Impacting Japanese Banks
+
+Date: July 18, 2025
+
+Report ID: CYB-2025-07-18-001
+
+Overview:
+A highly aggressive new variant of ransomware, identified as "CryptoLocker 2.0," has launched a coordinated attack targeting multiple mid-sized financial institutions within Tokyo's financial district. The attack, which began in the early hours of July 18, 2025, has encrypted core banking systems and customer databases, demanding substantial cryptocurrency ransoms.
+
+Impact and Severity:
+The primary impact zone is Tokyo, Japan (postal code 100-0005), specifically impacting institutions concentrated around the Marunouchi and Otemachi districts in the Asian continent. The incident has led to widespread operational paralysis, preventing customer transactions and access to online banking services. Given the direct impact on critical financial infrastructure and the potential for significant economic disruption, the severity is assessed as Critical. The status is currently Investigating, with Japanese cybersecurity authorities and bank incident response teams working to contain the spread and assess data integrity.
+
+Details of the Threat:
+"CryptoLocker 2.0" utilizes advanced obfuscation techniques to evade traditional antivirus solutions and propagates rapidly through network shares. It employs a novel key exchange mechanism, making decryption without the attacker's key extremely challenging. The ransom notes demand 100 BTC per affected institution. Initial analysis suggests the entry vector was a supply chain compromise affecting a commonly used financial software vendor.

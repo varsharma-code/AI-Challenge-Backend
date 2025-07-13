@@ -1,0 +1,241 @@
+// controllers/threatProcessingController.js
+
+// Using ES Module syntax
+import { getChatResponse } from '../services/vertexService.js'; // Ensure .js extension
+import { readArticleFiles } from './fetchArticles.js'; // Import the file reading function
+import path from 'path';     // For resolving file paths
+import ThreatDetail from '../models/ThreatDetails.js'; // Ensure .js extension
+import connectDB from '../config/mongo.js'; // Ensure .js extension
+
+// Describe the desired JSON structure and rules concisely for the AI for EXTRACTION
+const threatDataFormatDescription = `
+Your output MUST be a single JSON object with the following structure and rules, and nothing else.
+Do NOT include any conversational text, markdown outside the JSON, or code blocks other than the JSON itself.
+
+{
+    "name": "string", // Concise, descriptive threat name
+    "details": "string", // Comprehensive summary (min 10 characters)
+    "dateOfAdded": "string", // ISO 8601 date-time string (e.g., 'YYYY-MM-DDTHH:MM:SS.000Z'). If no time, assume midnight UTC.
+    "severity": "string", // Must be one of: 'Low', 'Medium', 'High', 'Critical'
+    "status": "string", // Must be one of: 'Detected', 'Mitigated', 'Investigating', 'Archived', 'False Positive'
+    "area": { // This object is required
+        "postalCode": "string", // Optional, if mentioned
+        "country": "string", // Required
+        "continent": "string", // Required
+        "city": "string" // Required
+    }
+}
+
+**Severity Mapping Guidance:**
+- 'Critical': Devastating, widespread critical impact, loss of life, major infrastructure damage.
+- 'High': Significant disruption, major impact, extensive data compromise, severe environmental damage.
+- 'Medium': Widespread illness, moderate impact, large volume of personal data compromised (but not critical).
+- 'Low': Temporary disruption, minor data exposure, contained incidents, no significant long-term damage.
+
+**Status Mapping Guidance:**
+- 'Detected': Threat identified, but not yet contained or resolved.
+- 'Mitigated': Threat contained, impact reduced or resolved.
+- 'Investigating': Threat being actively analyzed to understand scope/cause.
+- 'Archived': Threat resolved and documented.
+- 'False Positive': Initial detection was incorrect.
+
+**Area Extraction Guidance:**
+- Prioritize explicit city, country, continent.
+- If a general region (e.g., 'Southeast Asia') is mentioned, try to find the most specific city/country within that region from the article's details.
+- Postal code is optional.
+`;
+
+// Prompt for the first AI call (classification)
+const isCybersecurityThreatPrompt = (articleContent) => {
+    return `
+Analyze the following article content. Determine if it primarily discusses a cybersecurity threat, incident, vulnerability, or related topic.
+Your response MUST be a single JSON object with a boolean value, like this:
+{"isCybersecurityThreat": true}
+or
+{"isCybersecurityThreat": false}
+
+Do NOT include any other text or markdown.
+
+---
+**Article Content:**
+\`\`\`
+${articleContent}
+\`\`\`
+`;
+};
+
+// Prompt for the second AI call (data extraction)
+const createExtractionPrompt = (articleContent) => {
+    return `
+Please extract the relevant information from the following article and format it as a JSON object.
+${threatDataFormatDescription}
+
+---
+**Article to Process:**
+\`\`\`
+${articleContent}
+\`\`\`
+    `;
+};
+
+/**
+ * Helper function to classify an article using AI.
+ * @param {string} articleContent - The content of the article.
+ * @returns {Promise<boolean>} - True if the article is classified as a cybersecurity threat, false otherwise.
+ */
+async function classifyArticle(articleContent) {
+    const prompt = isCybersecurityThreatPrompt(articleContent);
+    try {
+        const aiResponseText = await getChatResponse(prompt);
+        // Clean the response from markdown if present
+        let cleanedResponseText = aiResponseText.trim();
+        if (cleanedResponseText.startsWith('```json')) {
+            cleanedResponseText = cleanedResponseText.substring('```json'.length);
+        }
+        if (cleanedResponseText.endsWith('```')) {
+            cleanedResponseText = cleanedResponseText.substring(0, cleanedResponseText.length - '```'.length);
+        }
+        cleanedResponseText = cleanedResponseText.trim();
+
+        const classificationResult = JSON.parse(cleanedResponseText);
+        return classificationResult.isCybersecurityThreat === true; // Ensure strict boolean check
+    } catch (error) {
+        console.error(`Error classifying article with AI: ${error.message}`);
+        // Log the raw AI response that caused the parsing error for debugging
+        console.error('Raw AI classification response that failed parsing:', aiResponseText);
+        return false; // Default to false if classification fails or is unparseable
+    }
+}
+
+
+/**
+ * Processes a directory of threat articles using Vertex AI to extract structured data.
+ * Each file in the directory is expected to be a plain text article.
+ *
+ * @param {string} articlesDirectoryPath - The absolute or relative path to the directory containing your plain text article files.
+ * @returns {Promise<Array<Object>>} A promise that resolves to an array of extracted ThreatDetail objects.
+ */
+export async function processThreatArticles(articlesDirectoryPath) {
+    const processedThreats = [];
+
+    try {
+        // Use the imported readArticleFiles function
+        const articleContents = await readArticleFiles(articlesDirectoryPath);
+
+        if (articleContents.length === 0) {
+            console.warn(`No article files found or readable in directory: ${articlesDirectoryPath}.`);
+            return [];
+        }
+
+        for (const articleContent of articleContents) {
+            // For logging purposes, use a snippet or generate a temporary title
+            const articleSnippet = articleContent.substring(0, 50).replace(/\n/g, ' ') + '...';
+            console.log(`Attempting to classify article: "${articleSnippet}"`);
+
+            // --- First AI Call: Classification ---
+            const isCyberThreat = await classifyArticle(articleContent);
+
+            if (!isCyberThreat) {
+                console.log(`Article "${articleSnippet}" is NOT a cybersecurity threat. Skipping extraction.`);
+                continue; // Skip to the next article
+            }
+
+            console.log(`Article "${articleSnippet}" IS a cybersecurity threat. Proceeding with extraction.`);
+
+            // --- Second AI Call: Data Extraction (only if classified as a threat) ---
+            const extractionPrompt = createExtractionPrompt(articleContent);
+
+            try {
+                const aiResponseText = await getChatResponse(extractionPrompt);
+
+                // --- Strip Markdown code block delimiters ---
+                let cleanedResponseText = aiResponseText.trim();
+                if (cleanedResponseText.startsWith('```json')) {
+                    cleanedResponseText = cleanedResponseText.substring('```json'.length);
+                }
+                if (cleanedResponseText.endsWith('```')) {
+                    cleanedResponseText = cleanedResponseText.substring(0, cleanedResponseText.length - '```'.length);
+                }
+                cleanedResponseText = cleanedResponseText.trim(); // Trim again after stripping
+
+                // Attempt to parse the cleaned AI's response as JSON
+                const extractedData = JSON.parse(cleanedResponseText);
+                processedThreats.push(extractedData);
+                console.log(`Successfully extracted data for: "${articleSnippet}"`);
+
+            } catch (aiError) {
+                console.error(`Error processing article "${articleSnippet}" with AI for extraction:`, aiError.message);
+                // Log the raw AI response that caused the parsing error for debugging
+                console.error('Raw AI extraction response that failed parsing:', aiResponseText);
+                processedThreats.push({
+                    name: `Extraction Failed for ${articleSnippet}`,
+                    details: `Failed to extract details due to AI error: ${aiError.message}. Raw response: ${aiResponseText ? aiResponseText.substring(0, 100) : 'N/A'}...`, // Include snippet of raw response
+                    dateOfAdded: new Date().toISOString(),
+                    severity: "Low",
+                    status: "False Positive",
+                    area: { country: "Unknown", continent: "Unknown", city: "Unknown" },
+                    extractionError: aiError.message
+                });
+            }
+            // Add a small delay between API calls to avoid hitting rate limits
+            await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
+        }
+
+        return processedThreats;
+
+    } catch (overallError) {
+        console.error('An overall error occurred during article processing:', overallError);
+        throw new Error(`Failed to process articles: ${overallError.message}`);
+    }
+}
+
+
+// --- GLOBAL CALL FOR TESTING FLOW ---
+// This will execute the processing when the module is imported/loaded.
+// In a production app, you'd typically call processThreatArticles from a route handler or main script.
+
+// Adjust path as needed for your project structure.
+// Assuming 'ArticlesDump' is a sibling directory to 'controllers'.
+const dirPath = path.join(process.cwd(), 'ArticlesDump');
+console.log("Articles Directory Path for global call:", dirPath);
+
+// Use an Immediately Invoked Async Function Expression (IIAFE) to handle the top-level await
+(async () => {
+    try {
+        // console.log("Connecting to MongoDB...");
+        // await connectDB();
+        // console.log("MongoDB Connected.");
+
+        console.log("Starting article processing...");
+        const finalRes = await processThreatArticles(dirPath);
+        console.log("\n--- Final Processing Results ---");
+        console.log(JSON.stringify(finalRes, null, 2));
+
+        const savedThreats = [];
+        // for (const threatData of finalRes) {
+        //     try {
+        //         // Create a new Mongoose document instance
+        //         const newThreat = new ThreatDetail(threatData);
+        //         // Save the document to the database
+        //         const savedThreat = await newThreat.save();
+        //         savedThreats.push(savedThreat);
+        //         console.log(`Saved threat: "${savedThreat.name}" (ID: ${savedThreat._id})`);
+        //     } catch (dbError) {
+        //         if (dbError.code === 11000) { // MongoDB duplicate key error (for unique: true on 'name')
+        //             console.warn(`Warning: Threat "${threatData.name}" already exists or is a duplicate. Skipping save.`);
+        //         } else {
+        //             console.error(`Error saving threat "${threatData.name || 'Unknown'}" to DB:`, dbError.message);
+        //         }
+        //     }
+        // }
+        // console.log(`\nSuccessfully saved ${savedThreats.length} threats to the database.`);
+    } catch (error) {
+        console.error("\n--- Error during global processing call ---");
+        console.error(error.message);
+    } finally {
+        // Optional: Disconnect from DB if this script is meant to run once and exit
+        // If your app is long-running (e.g., a web server), you wouldn't disconnect here.
+        // await mongoose.disconnect(); // Assuming you have mongoose imported and connected
+        // console.log("MongoDB Disconnected.");
+    }
+})();
