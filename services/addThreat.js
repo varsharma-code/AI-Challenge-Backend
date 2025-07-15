@@ -1,6 +1,6 @@
 // app.js (or a route handler file, after connecting to DB)
 const connectDB = require('../config/mongo'); // Your database connection
-const ThreatDetail = require('../models/ThreatDetails'); // Import the ThreatDetail model
+const ThreatDetail = require('../models/ThreatDetails.js'); // Import the ThreatDetail model
 
 // Connect to MongoDB Atlas (ensure this runs once at application start)
 connectDB();

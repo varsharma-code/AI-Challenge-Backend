@@ -1,15 +1,3 @@
-Article 6: "GhostNet" DDoS Attack on German E-commerce Platform
-Subject: Cyber Attack: Distributed Denial of Service Against Online Retailer
+Hyderabad Tech Firm Reports Multiple Account Compromises
 
-Date: July 23, 2025
-
-Report ID: CYB-2025-07-23-003
-
-Overview:
-"ShopNow GmbH," a leading German e-commerce platform, has been hit by a large-scale Distributed Denial of Service (DDoS) attack. The attack, which commenced on July 23, 2025, at 09:00 CEST, rendered their website and online services inaccessible for several hours, impacting sales and customer experience.
-
-Impact and Severity:
-The attack primarily affected ShopNow's servers located in Berlin, Germany (postal code 10115), impacting its operations across the European continent. While the service disruption was significant, ShopNow's cybersecurity team successfully mitigated the attack within six hours, limiting long-term damage. The severity is assessed as Low due to the temporary nature of the disruption and the absence of data compromise. The status is now Mitigated, with post-incident analysis ongoing.
-
-Details of the Threat:
-The "GhostNet" DDoS attack utilized a botnet comprising compromised IoT devices, flooding ShopNow's servers with an overwhelming volume of traffic. The attackers demanded a small ransom to cease the attack, which was not paid. ShopNow has implemented enhanced DDoS protection measures and is working with law enforcement to identify the perpetrators
+A technology firm based in Hyderabad has reported a series of account compromises affecting its internal employee accounts. Initial investigation points to credential stuffing attacks, where attackers used previously leaked credentials to gain unauthorized access. Multi-factor authentication is being enforced across all accounts, and a password reset has been mandated for all employees. The incident highlights the importance of unique and strong passwords.

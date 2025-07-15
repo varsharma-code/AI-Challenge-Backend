@@ -1,5 +1,5 @@
 / services/scraperService.js
-const ThreatDetail = require('../models/ThreatDetail'); // Import your ThreatDetail Mongoose model
+const ThreatDetail = require('../models/ThreatDetails.js'); // Import your ThreatDetail Mongoose model
 const axios = require('axios'); // For making HTTP requests to external APIs
 
 // Define your 4 API endpoints (replace with your actual URLs)
