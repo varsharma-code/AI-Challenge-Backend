@@ -45,7 +45,7 @@ async function addQueueTransactions() {
                     'https://cloud.uipath.com/panw/Dev/orchestrator_/odata/Queues/UiPathODataSvc.AddQueueItem',
                     {
                         itemData: {
-                            Name: "PO_Transactions",
+                            Name: "PO_1",
                             Priority: "High",
                             SpecificContent: {
                                 "QuotationNumber": "00"+item.SalesDocument,
